@@ -1,0 +1,66 @@
+name: Build
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [master]
+    paths:
+      - "src/**"
+      - "include/**"
+      - ".github/workflows/**"
+      - "CMakeLists.txt"
+  push:
+    branches: [master]
+    paths:
+      - "src/**"
+      - "include/**"
+      - ".github/workflows/**"
+      - "CMakeLists.txt"
+
+jobs:
+  cancel-old-build:
+    name: Cancel previous builds
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.ref_name != 'master'}}
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+
+  clang-format:
+    needs: cancel-old-build
+    name: Check clang-format
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: clang-format
+        uses: jidicula/clang-format-action@v4.11.0
+        with:
+          clang-format-version: "13"
+          check-path: "."
+          exclude-regex: (.*thirdparty.*)
+
+  build:
+    needs: cancel-old-build
+    name: Build Windows
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        config:
+          - "Debug"
+          - "Release"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Build & Test
+        run: cmake --build build --config ${{ matrix.config }} --target ALL_BUILD -j 8 --
